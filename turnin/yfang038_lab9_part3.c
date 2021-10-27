@@ -17,20 +17,18 @@
 #endif
 
 
-enum States {Start, Init, On, Loop} state;
-unsigned char press = ~PINA & 0x07;
-unsigned char i = 0;
+enum States {Start, Init, On, Loop, stillPressed} state;
 unsigned char j = 0;
 unsigned char t = 0;
 double array[12] = {261.63, 293.66, 329.63, 261.63, 293.66, 261.63, 523.25, 392.00, 293.66, 349.23, 440.00, 392.00};
 unsigned char time[12] = {3,3,8,3,3,3,3,5,3,3,8,5};
-
+unsigned char ticks = 0;
 
 
 
 volatile unsigned char TimerFlag = 0;
 unsigned long _avr_timer_M = 1;
-unsigned char i = 0;
+unsigned char currentNote = 0;
 unsigned char timeTrigger = 0;
 unsigned long _avr_timer_cntcurr = 0;
 void TimerOn() {
@@ -88,11 +86,17 @@ void set_PWM(double frequency) {
  }
 
 void Tick(){
+	
+unsigned char press = ~PINA & 0x07;
 	switch(state){
 	    case Start:
 		    state = Init;
 		    break;
 	    case Init:
+			    currentNote=0; 
+			    j=0;
+			    t=0;
+			    ticks = 0;
 		    if(press == 0x01){
 			    state = On;
 		    }else{
@@ -100,18 +104,31 @@ void Tick(){
 		    }
 		    break;
 	    case On:
-		    if (i <= time[j]){
-			    state = On;
-         	    }else if(i > time[j]){
+		    if (ticks <= time[j]){
+                           set_PWM(array[currentNote]); 
+			   ticks++;
+			   state = On;
+         	    }else if(ticks > time[j]){
            		    t++;
 			    state = Loop;
          	    }
          	    break;
 	    case Loop:
-		    if(t<13){
+		    if(t<12){
+			    ticks = 0;
+			    currentNote++;
 			    j++;
 			    state = On;
-		    }else{
+		    }else if(t==12){
+			    state = stillPressed;
+			    set_PWM(0);
+		    }
+		    break;
+	    case stillPressed:
+		    if(press == 0x01) {
+			    state = stillPressed;
+		    }
+		    else{
 			    state = Init;
 		    }
 		    break;
@@ -121,13 +138,23 @@ void Tick(){
 
 
 	    switch (state) {
-		    case Start: break;
-		    case Init:  i=0; j=0; t=0; break;
-		    case On: 	set_PWN(array[j]);
-				i++;
+		    case Start:
+			    break;
+		    case Init:
+			    currentNote=0; 
+			    j=0;
+			    t=0;
+			    ticks = 0;
+			    set_PWM(0);
+			    break;
+		    case On: 	
 				break;
-		    case Loop:	set_PWN(0);	break;
-                    default:	break;
+		    case Loop:
+				break;
+		    case stillPressed:
+				break;
+		    default:	
+	  		break;
 	    }
 
 	}
