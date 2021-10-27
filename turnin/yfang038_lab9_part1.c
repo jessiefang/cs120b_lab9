@@ -1,4 +1,4 @@
-/*	Author: Yunjie Fang
+/*	Author:Yunjie Fang
  *  Partner(s) Name: 
  *	Lab Section:
  *	Assignment: Lab #9  Exercise #1
@@ -10,9 +10,49 @@
  *	Demo link: 
  */
 #include <avr/io.h>
+#include "io.h"
+#include <avr/interrupt.h>
 #ifdef _SIMULATE_
 #include "simAVRHeader.h"
 #endif
+
+
+enum States{Start, Init, C4, D4, E4} state;
+
+volatile unsigned char TimerFlag = 0;
+unsigned long _avr_timer_M = 1;
+unsigned char i = 0;
+unsigned char timeTrigger = 0;
+unsigned long _avr_timer_cntcurr = 0;
+void TimerOn() {
+	TCCR1B = 0x0B;
+	OCR1A = 125;
+	TIMSK1 = 0x02;
+	TCNT1 = 0;
+	_avr_timer_cntcurr = _avr_timer_M;
+	SREG |= 0x80;
+}
+
+void TimerOff() {
+	TCCR1B = 0x00;
+}
+
+void TimerISR() {
+ TimerFlag = 1;
+}
+
+ISR(TIMER1_COMPA_vect) {
+	_avr_timer_cntcurr--;
+	if (_avr_timer_cntcurr == 0) {
+		TimerISR();
+		_avr_timer_cntcurr = _avr_timer_M;
+	}
+}
+
+void TimerSet (unsigned long M) {
+	_avr_timer_M = M;
+	_avr_timer_cntcurr = _avr_timer_M;
+}
 
 void set_PWM(double frequency) {
 	static double current_frequency;
@@ -38,14 +78,14 @@ void set_PWM(double frequency) {
    	TCCR3B = 0x00;
  }
 
-enum States{Start, Init, C4, D4, E4} state;
-unsigned char press = ~PINA & 0x07;
-void Tick(){
+void Tick(){	
+	unsigned char press = ~PINA & 0x07;
 	switch(state){
 	    case Start:
 		    state = Init;
 		    break;
 	    case Init:
+		   
 		    if (press == 0x01){
            		    state = C4;
          	    }else if(press == 0x02){
@@ -58,6 +98,7 @@ void Tick(){
          	    break;
 	    case C4:
 		    if (press == 0x01) {
+			    
              		    state = C4;
          	    }else{
              		    state = Init;
@@ -65,13 +106,15 @@ void Tick(){
          	    break;
 	    case D4:
 		    if (press == 0x02) {
-                            state = D4;
+                           
+			    state = D4;
                     }else{
                             state = Init;
                     }
                     break;
 	    case E4:
 		    if (press == 0x04) {
+			   
                             state = E4;
                     }else{
                             state = Init;
@@ -80,33 +123,40 @@ void Tick(){
 	    default:
 		    state = Start;
 		    break;
-
-
-	    switch (state) {
-		    case Start:	break;
-		    case Init:	set_PWM(0); break;
-		    case C4:	set_PWM(261.63); break;
-		    case D4:	set_PWM(293.66); break;
-		    case E4:	set_PWM(329.63); break;
-                    default:	break;
 	}
-
+	switch(state) {
+		case Start:
+			break;
+		case Init:
+			set_PWM(0);
+			break;
+		case C4:
+			set_PWM(261.63);
+			break;
+		case D4:
+			set_PWM(293.66);
+			break;
+		case E4:
+			set_PWM(329.63);
+			break;
+		default:
+			break;
 	}
-
 
 }
-
-
-
 int main(void) {
-    /* Insert DDR and PORT initializations */
+
 	DDRA = 0x00; PORTA = 0xFF;
-     	DDRB = 0xFF; PORTB = 0x00;
-     	PWM_on();
+    	DDRB = 0xFF; PORTB = 0x00;
+     	TimerSet(100);
+    	TimerOn();
+	PWM_on();
      	state = Start;
-    /* Insert your solution below */
     while (1) {
-	Tick();
+	   Tick();
+	   while(!TimerFlag) {};
+	   TimerFlag = 0;
+	   
     }
     return 1;
 }
